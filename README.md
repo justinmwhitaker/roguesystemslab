@@ -1,7 +1,4 @@
-# roguesystemslab
-WIP for Rogue Systems Lab
-# Rogue Systems Lab
-
+# Prospect-CLI
 Prospecting automation concept and implementation blueprint.
 
 ## Goal
