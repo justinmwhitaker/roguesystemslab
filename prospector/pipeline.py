@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .config import RunConfig
 from .scoring import conversion_score
+from .sources import Candidate, get_adapters
 
 
 @dataclass
@@ -68,5 +69,5 @@ def write_csv(rows: list[ProspectRow], out_path: str) -> Path:
 
 
 def dry_run(config: RunConfig, out_path: str) -> Path:
-    rows = build_mock_rows(config)
+    rows = build_rows(config)
     return write_csv(rows, out_path)
