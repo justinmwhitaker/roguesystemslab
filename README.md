@@ -8,11 +8,10 @@ Build a terminal-first app/agent that accepts:
 - Prospect filters (example: decision makers at companies with fewer than 100 employees)
 
 Then:
-1. Discovers candidate prospects from LinkedIn pages surfaced via web search.
+1. Discovers candidate prospects from selected sources.
 2. Enriches each profile with role/company fit signals.
-3. Analyzes last 30 days of public post sentiment and topical relevance.
-4. Calculates a conversion-likelihood score.
-5. Exports ranked prospects to CSV.
+3. Calculates a conversion-likelihood score.
+4. Exports ranked prospects to CSV.
 
 ---
 
@@ -26,86 +25,41 @@ Use this architecture with policy/legal review before deployment.
 
 ---
 
+## Current implementation status (May 2026)
+This repo currently includes:
+- Interactive CLI mode (default if no subcommand is provided)
+- Non-interactive `run` subcommand with flags
+- Source-aware adapter routing for `web` and `linkedin`
+- CSV output with deterministic scoring
 
-## How the app gets data (explicit ingestion strategy)
-The app should **not** rely on free-form prompt-only answers from the user for prospect data. Instead, collect data through structured connectors and only prompt the user for configuration and fallback disambiguation.
+The external-source adapters are MVP-level and use public search endpoints. They are intended for experimentation and should be replaced by licensed/provider APIs for production.
 
-### What the user should provide interactively
-At run time, prompt for:
-- Product description/value prop
-- ICP constraints (industry, stage, geography)
-- Hard filters (e.g., headcount < 100, titles, seniority)
-- Output limits (max rows, CSV path)
-- Which connected data sources to use
+## How to run
 
-This is configuration input, not prospect-source data.
+### Interactive mode
+Run `prospector` with no subcommand and answer prompts:
 
-### Where prospect data should come from
-Use a provider adapter layer (`SourceAdapter`) so each source is pluggable:
+1) What product are we looking for prospects for?
+2) What is the target client?
+3) What is the target company size?
+4) Where should Prospect look? (Web, LinkedIn)
+5) How many prospects do I want returned?
+6) How many days should be searched? (1-180 days)
 
-1. **Primary (recommended): licensed APIs/data providers**
-   - B2B prospect databases
-   - Company enrichment APIs (headcount, industry)
-   - Social listening providers for recent-post text/metadata
-2. **Secondary: first-party systems**
-   - CRM contacts, past opportunities, website leads
-   - Product usage telemetry for warm-account signals
-3. **Tertiary: public web discovery**
-   - Query engine discovers candidate profile/company URLs
-   - Fetch only policy-compliant public data
-
-### Should the app prompt users for missing fields?
-Yes, but only as a fallback in two cases:
-- **Disambiguation**: multiple companies match a name.
-- **Missing filters**: user omitted a required constraint.
-
-Everything else should run unattended once configured.
-
-### Suggested run modes
-- `interactive`: asks guided questions, writes a run config.
-- `batch`: consumes a saved `config.yaml` and runs headless (best for cron/CI).
-
-### Example `config.yaml`
-```yaml
-product: "AI-first SOC automation platform"
-icp:
-  industry: ["B2B SaaS"]
-  stage: ["Seed", "Series A", "Series B"]
-  geography: ["US"]
-filters:
-  titles: ["CTO", "VP Engineering", "Head of Security"]
-  seniority: ["director", "vp", "c_level"]
-  company_headcount_max: 100
-sources:
-  providers: ["provider_a", "provider_b"]
-  crm: true
-scoring:
-  lookback_days: 30
-output:
-  csv_path: "prospects.csv"
-  max_prospects: 250
+```bash
+prospector
 ```
 
-### Data flow summary
-1. User supplies config (interactive or YAML).
-2. Connectors fetch candidates + enrich company/person attributes.
-3. Post collector pulls last-30-day text and engagement metadata.
-4. Scoring engine computes fit + sentiment + intent.
-5. Ranked records are written to CSV.
-
-## Suggested architecture (terminal app)
-
-### 1) CLI interface
-Use Python + Typer (or Node + Commander) for cross-platform terminal support.
-
-Example command:
-
+### Non-interactive mode
 ```bash
 prospector run \
   --product "AI-first SOC automation platform" \
   --icp "Seed-Series B B2B SaaS companies" \
   --filters "decision makers, <100 employees, US" \
-  --max-prospects 250 \
+  --target-company-size "1-100" \
+  --sources "web,linkedin" \
+  --lookback-days 30 \
+  --max-prospects 50 \
   --out prospects.csv
 ```
 
@@ -273,52 +227,5 @@ Works even when you do not want to create a package install.
 
 #### Linux/macOS
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install pytest
-PYTHONPATH=src python -m pytest -q
-PYTHONPATH=src python -m prospector.cli run \
-  --product "AI-first SOC automation platform" \
-  --icp "Seed-Series B B2B SaaS companies" \
-  --filters "decision makers,<100 employees,US" \
-  --max-prospects 3 \
-  --out ./out/prospects.csv
-head -n 5 out/prospects.csv
-```
-
-#### Windows PowerShell
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install pytest
-$env:PYTHONPATH = "src"
 python -m pytest -q
-python -m prospector.cli run --product "AI-first SOC automation platform" --icp "Seed-Series B B2B SaaS companies" --filters "decision makers,<100 employees,US" --max-prospects 3 --out .\out\prospects.csv
-Get-Content .\out\prospects.csv -TotalCount 5
 ```
-
-### Option B: install as a CLI command
-If your environment can resolve Python package dependencies:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows PowerShell: .venv\Scripts\Activate.ps1
-python -m pip install -e .
-prospector run \
-  --product "AI-first SOC automation platform" \
-  --icp "Seed-Series B B2B SaaS companies" \
-  --filters "decision makers,<100 employees,US" \
-  --max-prospects 3 \
-  --out ./out/prospects.csv
-```
-
-### Expected results
-- Unit tests pass (`1 passed`).
-- CLI prints: `Dry run complete. Wrote out/prospects.csv`.
-- CSV contains header + 3 mock rows with `conversion_likelihood` values.
-
-### Troubleshooting
-- `ModuleNotFoundError: prospector`:
-  - Ensure `PYTHONPATH=src` (or `$env:PYTHONPATH = "src"` on PowerShell).
-- `pip install -e .` fails due to restricted package index/network:
-  - Use **Option A** (`PYTHONPATH=src`) which does not require editable install.
