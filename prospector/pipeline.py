@@ -25,46 +25,34 @@ class ProspectRow:
     source_timestamp_utc: str
 
 
-def _score_candidate(candidate: Candidate, target_company_size: str) -> ProspectRow:
-    sentiment = 0.0
-    topic = 0.6
-    intent = 0.5
-    role_fit = 75
-    company_fit = 70
-
-    if target_company_size and candidate.company_headcount > 0:
-        company_fit = 85
-
-    sentiment_component = (sentiment + 1) * 50
-    score = conversion_score(role_fit, company_fit, topic * 100, sentiment_component, intent * 100)
-
-    return ProspectRow(
-        full_name=candidate.full_name,
-        title=candidate.title,
-        company_name=candidate.company_name,
-        company_headcount=candidate.company_headcount,
-        headcount_fit=candidate.company_headcount < 100 if candidate.company_headcount else False,
-        linkedin_url=candidate.linkedin_url,
-        sentiment_30d=sentiment,
-        topic_relevance_30d=topic,
-        intent_signal_score=intent,
-        conversion_likelihood=score,
-        source_timestamp_utc=datetime.now(timezone.utc).isoformat(),
-    )
+MOCK_PROSPECTS = [
+    ("Alex Carter", "CTO", "Nebula Labs", 78, -0.1, 0.82, 0.71, 90, 88),
+    ("Priya Shah", "VP Engineering", "OrbitForge", 54, 0.2, 0.75, 0.66, 86, 84),
+    ("Jordan Lee", "Head of Security", "SignalPeak", 112, -0.05, 0.64, 0.59, 80, 72),
+]
 
 
-def build_rows(config: RunConfig) -> list[ProspectRow]:
-    query = f"{config.product} {config.icp} {config.filters} last {config.lookback_days} days"
-    adapters = get_adapters(config.sources)
-    if not adapters:
-        return []
-
-    per_source_limit = max(1, config.max_prospects // len(adapters))
-    candidates: list[Candidate] = []
-    for adapter in adapters:
-        candidates.extend(adapter.fetch_candidates(query, per_source_limit))
-
-    rows = [_score_candidate(c, config.target_company_size) for c in candidates[: config.max_prospects]]
+def build_mock_rows(config: RunConfig) -> list[ProspectRow]:
+    now = datetime.now(timezone.utc).isoformat()
+    rows: list[ProspectRow] = []
+    for full_name, title, company, headcount, sentiment, topic, intent, role_fit, company_fit in MOCK_PROSPECTS[: config.max_prospects]:
+        sentiment_component = (sentiment + 1) * 50
+        score = conversion_score(role_fit, company_fit, topic * 100, sentiment_component, intent * 100)
+        rows.append(
+            ProspectRow(
+                full_name=full_name,
+                title=title,
+                company_name=company,
+                company_headcount=headcount,
+                headcount_fit=headcount < 100,
+                linkedin_url=f"https://www.linkedin.com/in/{full_name.lower().replace(' ', '-')}",
+                sentiment_30d=sentiment,
+                topic_relevance_30d=round(topic, 2),
+                intent_signal_score=round(intent, 2),
+                conversion_likelihood=score,
+                source_timestamp_utc=now,
+            )
+        )
     return rows
 
 
