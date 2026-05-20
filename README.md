@@ -237,11 +237,6 @@ def run(product, icp, filters, max_prospects, out_csv):
 
 ---
 
-## Next practical step
-If you want, the next iteration can scaffold the actual CLI project structure (`src/`, commands, scoring module, CSV writer) so you can run a dry-run in terminal immediately.
-
----
-
 ## CLI scaffold (ready for dry run)
 
 ### Project structure
