@@ -36,11 +36,84 @@ The external-source adapters are MVP-level and use public search endpoints. They
 
 ## How to run
 
-### Install once
-Install the project in editable mode so the `prospector` command is available from Bash, PowerShell, or any terminal on your Python environment's `PATH`:
+### Interactive mode
+Run `prospector` with no subcommand and answer prompts:
+
+1) What product are we looking for prospects for?
+2) What is the target client?
+3) What is the target company size?
+4) Where should Prospect look? (Web, LinkedIn)
+5) How many prospects do I want returned?
+6) How many days should be searched? (1-180 days)
 
 ```bash
-python -m pip install -e .
+prospector
+```
+
+### Non-interactive mode
+```bash
+prospector run \
+  --product "AI-first SOC automation platform" \
+  --icp "Seed-Series B B2B SaaS companies" \
+  --filters "decision makers, <100 employees, US" \
+  --target-company-size "1-100" \
+  --sources "web,linkedin" \
+  --lookback-days 30 \
+  --max-prospects 50 \
+  --out prospects.csv
+```
+
+### 2) Workflow modules
+- **Input parser**
+  - Normalizes product/ICP/filter constraints into structured criteria.
+- **Lead discovery**
+  - Builds search queries and collects candidate LinkedIn profile/company URLs via compliant acquisition paths.
+- **Profile extractor**
+  - Pulls public data fields: name, title, company, location, profile URL, etc.
+- **Company enricher**
+  - Adds company headcount range, industry, growth indicators from enrichment providers.
+- **Post collector (30-day window)**
+  - Pulls recent public posts and metadata (date, reactions/comments if available).
+- **NLP scoring engine**
+  - Sentiment scoring
+  - Topical match to your product problem space
+  - Buying-intent cues (tool-change, hiring, pain keywords)
+- **Ranking model**
+  - Weighted score + confidence score + explanation text.
+- **CSV exporter**
+  - Writes standardized output schema.
+
+### 3) Data model (CSV columns)
+Recommended columns:
+- `prospect_id`
+- `full_name`
+- `title`
+- `seniority`
+- `department`
+- `company_name`
+- `company_headcount`
+- `headcount_fit` (boolean)
+- `location`
+- `linkedin_url`
+- `icp_fit_score` (0-100)
+- `sentiment_30d` (-1.0 to 1.0)
+- `topic_relevance_30d` (0-1)
+- `intent_signal_score` (0-1)
+- `conversion_likelihood` (0-100)
+- `score_explanation`
+- `last_post_date`
+- `source_timestamp_utc`
+
+### 4) Scoring formula (first-pass baseline)
+Example deterministic baseline before ML tuning:
+
+```text
+conversion_likelihood =
+  0.35 * role_fit +
+  0.25 * company_fit +
+  0.20 * topic_relevance_30d +
+  0.10 * sentiment_component +
+  0.10 * intent_signal
 ```
 
 ### Interactive mode
@@ -57,7 +130,19 @@ After installation, run `prospector` with no subcommand and answer prompts:
 prospector
 ```
 
-### Non-interactive mode
+---
+
+## CLI scaffold (ready for dry run)
+
+### Project structure
+- `pyproject.toml`
+- `src/prospector/cli.py`
+- `src/prospector/pipeline.py`
+- `src/prospector/scoring.py`
+- `src/prospector/config.py`
+- `tests/test_scoring.py`
+
+### Quick start
 ```bash
 prospector run \
   --product "AI-first SOC automation platform" \

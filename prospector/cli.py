@@ -12,10 +12,7 @@ DEFAULT_OUTPUT_PATH = "prospects.csv"
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="prospector",
-        description="Run Prospector interactively by default, or use `prospector run` for scripted runs.",
-    )
+    parser = argparse.ArgumentParser(prog="prospector", description="Prospector CLI scaffold")
     sub = parser.add_subparsers(dest="command")
 
     run_parser = sub.add_parser("run", help="Run Prospector non-interactively and write CSV")
@@ -23,14 +20,14 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--icp", required=True, help="ICP definition")
     run_parser.add_argument("--filters", required=True, help="Prospect filters")
     run_parser.add_argument("--max-prospects", type=int, default=50, help="Maximum prospects to output")
-    run_parser.add_argument("--out", default=DEFAULT_OUTPUT_PATH, help="Output CSV path")
+    run_parser.add_argument("--out", default="prospects.csv", help="Output CSV path")
     run_parser.add_argument("--target-company-size", default="", help="Target company size")
     run_parser.add_argument("--sources", default="web,linkedin", help="Comma-separated sources (web,linkedin)")
     run_parser.add_argument("--lookback-days", type=int, default=30, help="Lookback window in days (1-180)")
     return parser
 
 
-def _ask_non_empty(question: str, input_fn: Callable[[str], str] = input) -> str:
+def _ask_non_empty(question: str, input_fn=input) -> str:
     while True:
         value = input_fn(question).strip()
         if value:
@@ -38,7 +35,7 @@ def _ask_non_empty(question: str, input_fn: Callable[[str], str] = input) -> str
         print("Please enter a value.")
 
 
-def _ask_int(question: str, minimum: int, maximum: int, input_fn: Callable[[str], str] = input) -> int:
+def _ask_int(question: str, minimum: int, maximum: int, input_fn=input) -> int:
     while True:
         raw = input_fn(question).strip()
         try:
@@ -51,24 +48,17 @@ def _ask_int(question: str, minimum: int, maximum: int, input_fn: Callable[[str]
         print(f"Please enter a number between {minimum} and {maximum}.")
 
 
-def _parse_sources(raw: str) -> tuple[str, ...]:
+def _ask_sources(question: str, input_fn=input) -> tuple[str, ...]:
     allowed = {"web", "linkedin"}
-    selected = tuple(s.strip().lower() for s in raw.split(",") if s.strip())
-    if not selected or not set(selected).issubset(allowed):
-        raise ValueError("sources must be one or more of: web, linkedin")
-    return selected
-
-
-def _ask_sources(question: str, input_fn: Callable[[str], str] = input) -> tuple[str, ...]:
     while True:
-        raw = input_fn(question).strip()
-        try:
-            return _parse_sources(raw)
-        except ValueError:
-            print("Please choose from: web, linkedin (comma-separated).")
+        raw = input_fn(question).strip().lower()
+        selected = tuple(s.strip() for s in raw.split(",") if s.strip())
+        if selected and set(selected).issubset(allowed):
+            return selected
+        print("Please choose from: web, linkedin (comma-separated).")
 
 
-def prompt_for_run_config(input_fn: Callable[[str], str] = input) -> RunConfig:
+def prompt_for_run_config(input_fn=input) -> RunConfig:
     print("Prospector interactive setup")
     product = _ask_non_empty("1) What product are we looking for prospects for? ", input_fn)
     target_client = _ask_non_empty("2) What is the target client? ", input_fn)
@@ -88,41 +78,28 @@ def prompt_for_run_config(input_fn: Callable[[str], str] = input) -> RunConfig:
     )
 
 
-def run_interactive(
-    input_fn: Callable[[str], str] = input,
-    out_path: str = DEFAULT_OUTPUT_PATH,
-    run_fn: Callable[[RunConfig, str], Path] = dry_run,
-) -> Path:
-    config = prompt_for_run_config(input_fn)
-    written = run_fn(config, out_path)
-    print(f"Interactive run complete. Wrote {written}")
-    return written
-
-
-def run_from_args(args: argparse.Namespace, run_fn: Callable[[RunConfig, str], Path] = dry_run) -> Path:
-    config = RunConfig(
-        product=args.product,
-        icp=args.icp,
-        filters=args.filters,
-        max_prospects=args.max_prospects,
-        target_company_size=args.target_company_size,
-        sources=_parse_sources(args.sources),
-        lookback_days=args.lookback_days,
-    )
-    written = run_fn(config, args.out)
-    print(f"Run complete. Wrote {written}")
-    return written
-
-
-def main(argv: Sequence[str] | None = None) -> None:
+def main() -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
 
     if args.command == "run":
-        run_from_args(args)
+        sources = tuple(s.strip().lower() for s in args.sources.split(",") if s.strip())
+        config = RunConfig(
+            product=args.product,
+            icp=args.icp,
+            filters=args.filters,
+            max_prospects=args.max_prospects,
+            target_company_size=args.target_company_size,
+            sources=sources,
+            lookback_days=args.lookback_days,
+        )
+        written = dry_run(config, args.out)
+        print(f"Dry run complete. Wrote {written}")
         return
 
-    run_interactive()
+    config = prompt_for_run_config()
+    written = dry_run(config, "prospects.csv")
+    print(f"Interactive run complete. Wrote {written}")
 
 
 if __name__ == "__main__":
