@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable, Sequence
+from pathlib import Path
 
 from .config import RunConfig
 from .pipeline import dry_run
+
+
+DEFAULT_OUTPUT_PATH = "prospects.csv"
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="prospector", description="Prospector CLI scaffold")
     sub = parser.add_subparsers(dest="command")
 
-    run_parser = sub.add_parser("run", help="Run a dry-run pipeline and write CSV")
+    run_parser = sub.add_parser("run", help="Run Prospector non-interactively and write CSV")
     run_parser.add_argument("--product", required=True, help="Product description")
     run_parser.add_argument("--icp", required=True, help="ICP definition")
     run_parser.add_argument("--filters", required=True, help="Prospect filters")
@@ -75,7 +80,7 @@ def prompt_for_run_config(input_fn=input) -> RunConfig:
 
 def main() -> None:
     parser = build_parser()
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.command == "run":
         sources = tuple(s.strip().lower() for s in args.sources.split(",") if s.strip())

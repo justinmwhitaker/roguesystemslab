@@ -116,77 +116,18 @@ conversion_likelihood =
   0.10 * intent_signal
 ```
 
-Where:
-- `role_fit` = seniority/department/decision-maker match
-- `company_fit` = headcount + industry + geography match
-- `sentiment_component` transforms negative/neutral/positive language into a bounded score
-- `intent_signal` boosts when recent posts include trigger events (hiring, stack migration, pain complaints)
+### Interactive mode
+After installation, run `prospector` with no subcommand and answer prompts:
 
-### 5) Suggested stack
-- **Language**: Python 3.11+
-- **CLI**: Typer
-- **Orchestration**: simple pipeline first, then Celery/Prefect if needed
-- **Storage**: SQLite (local runs) + optional Postgres
-- **NLP**: LLM + lightweight sentiment model fallback
-- **Output**: Pandas / csv module
-- **Packaging**: pipx + Docker option for reproducibility
+1) What product are we looking for prospects for?
+2) What is the target client?
+3) What is the target company size?
+4) Where should Prospect look? (Web, LinkedIn)
+5) How many prospects do I want returned?
+6) How many days should be searched? (1-180 days)
 
-### 6) Windows/Linux execution
-- Keep dependencies pure-Python where possible.
-- Provide `requirements.txt` and `pyproject.toml`.
-- Include a single runnable entrypoint (`prospector`).
-- Use UTF-8 CSV output and normalize line endings.
-
----
-
-## MVP delivery plan
-
-### Phase 1 (1-2 weeks)
-- CLI skeleton
-- ICP/filter parser
-- Ingestion adapter stubs
-- CSV export with mock data
-
-### Phase 2 (2-4 weeks)
-- Real provider integrations
-- 30-day post ingestion
-- Baseline scoring + explanations
-
-### Phase 3 (4-6 weeks)
-- Feedback loop from conversion outcomes
-- Weight tuning / learning-to-rank
-- Rate limiting, retries, observability
-
----
-
-## Operational safeguards
-- Respect robots/ToS/provider licensing.
-- Enforce per-source rate limits and backoff.
-- Add audit logging for every score calculation.
-- Store only minimum required personal data.
-- Add opt-out/deletion pipeline and retention policy.
-
----
-
-## Minimal pseudocode
-
-```python
-def run(product, icp, filters, max_prospects, out_csv):
-    criteria = parse_inputs(product, icp, filters)
-    candidates = discover_candidates(criteria, max_prospects)
-
-    scored = []
-    for c in candidates:
-        profile = fetch_profile(c)
-        company = enrich_company(profile.company)
-        posts = fetch_recent_posts(profile, days=30)
-
-        features = build_features(criteria, profile, company, posts)
-        score, explanation = score_conversion(features)
-
-        scored.append(to_row(profile, company, features, score, explanation))
-
-    write_csv(rank(scored), out_csv)
+```bash
+prospector
 ```
 
 ---
@@ -203,29 +144,41 @@ def run(product, icp, filters, max_prospects, out_csv):
 
 ### Quick start
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows PowerShell: .venv\Scripts\Activate.ps1
-pip install -e .
 prospector run \
   --product "AI-first SOC automation platform" \
   --icp "Seed-Series B B2B SaaS companies" \
-  --filters "decision makers,<100 employees,US" \
-  --max-prospects 3 \
-  --out ./out/prospects.csv
+  --filters "decision makers, <100 employees, US" \
+  --target-company-size "1-100" \
+  --sources "web,linkedin" \
+  --lookback-days 30 \
+  --max-prospects 50 \
+  --out prospects.csv
 ```
 
-This scaffold currently performs a mock dry run and writes a CSV so you can validate terminal execution and output shape before integrating real provider connectors.
+## Source selection behavior
+- `--sources web` uses only the web adapter.
+- `--sources linkedin` uses only the LinkedIn-targeted adapter.
+- `--sources web,linkedin` uses both adapters.
 
-## How to test locally
+## Config model
+`RunConfig` currently supports:
+- `product: str`
+- `icp: str`
+- `filters: str`
+- `max_prospects: int` (must be non-negative)
+- `target_company_size: str`
+- `sources: tuple[str, ...]`
+- `lookback_days: int` (must be 1-180)
 
-### Prerequisites
-- Python 3.11+
-- `pip`
+## Project structure
+- `prospector/cli.py` — interactive and batch CLI entrypoints
+- `prospector/config.py` — run configuration model and validation
+- `prospector/sources.py` — source adapters and adapter factory
+- `prospector/pipeline.py` — candidate fetch orchestration, scoring, CSV write
+- `prospector/scoring.py` — conversion scoring utilities
+- `tests/` — unit tests for CLI, pipeline, scoring, sources
 
-### Option A: run without installation (fastest)
-Works even when you do not want to create a package install.
-
-#### Linux/macOS
+## Testing
 ```bash
 python -m pytest -q
 ```
